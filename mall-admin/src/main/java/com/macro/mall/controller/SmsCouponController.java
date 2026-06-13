@@ -8,9 +8,11 @@ import com.macro.mall.service.SmsCouponService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -56,15 +58,24 @@ public class SmsCouponController {
         return CommonResult.failed();
     }
 
-    @Operation(summary = "根据优惠券名称和类型分页获取优惠券列表")
+    @Operation(summary = "根据名称、类型、状态、有效期、领取/剩余数量等条件分页获取优惠券列表")
     @RequestMapping(value = "/list", method = RequestMethod.GET)
     @ResponseBody
     public CommonResult<CommonPage<SmsCoupon>> list(
-            @RequestParam(value = "name",required = false) String name,
-            @RequestParam(value = "type",required = false) Integer type,
+            @RequestParam(value = "name", required = false) String name,
+            @RequestParam(value = "type", required = false) Integer type,
+            @RequestParam(value = "useType", required = false) Integer useType,
+            @RequestParam(value = "status", required = false) Integer status,
+            @RequestParam(value = "startTime", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") Date startTime,
+            @RequestParam(value = "endTime", required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") Date endTime,
+            @RequestParam(value = "minReceiveCount", required = false) Integer minReceiveCount,
+            @RequestParam(value = "maxReceiveCount", required = false) Integer maxReceiveCount,
+            @RequestParam(value = "minRemainCount", required = false) Integer minRemainCount,
+            @RequestParam(value = "maxRemainCount", required = false) Integer maxRemainCount,
             @RequestParam(value = "pageSize", defaultValue = "5") Integer pageSize,
             @RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum) {
-        List<SmsCoupon> couponList = couponService.list(name,type,pageSize,pageNum);
+        List<SmsCoupon> couponList = couponService.list(name, type, useType, status, startTime, endTime,
+                minReceiveCount, maxReceiveCount, minRemainCount, maxRemainCount, pageSize, pageNum);
         return CommonResult.success(CommonPage.restPage(couponList));
     }
 
