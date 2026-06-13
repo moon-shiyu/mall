@@ -26,33 +26,51 @@ public class UmsMemberReceiveAddressController {
     @RequestMapping(value = "/add", method = RequestMethod.POST)
     @ResponseBody
     public CommonResult add(@RequestBody UmsMemberReceiveAddress address) {
-        int count = memberReceiveAddressService.add(address);
-        if (count > 0) {
-            return CommonResult.success(count);
+        try {
+            int count = memberReceiveAddressService.add(address);
+            if (count > 0) {
+                return CommonResult.success(count);
+            }
+            return CommonResult.failed();
+        } catch (IllegalArgumentException e) {
+            return CommonResult.validateFailed(e.getMessage());
         }
-        return CommonResult.failed();
     }
 
     @Operation(summary = "删除收货地址")
     @RequestMapping(value = "/delete/{id}", method = RequestMethod.POST)
     @ResponseBody
     public CommonResult delete(@PathVariable Long id) {
-        int count = memberReceiveAddressService.delete(id);
-        if (count > 0) {
-            return CommonResult.success(count);
+        if (id == null) {
+            return CommonResult.validateFailed("地址id不能为空");
         }
-        return CommonResult.failed();
+        try {
+            int count = memberReceiveAddressService.delete(id);
+            if (count > 0) {
+                return CommonResult.success(count);
+            }
+            return CommonResult.failed("地址不存在或无权操作");
+        } catch (IllegalArgumentException e) {
+            return CommonResult.validateFailed(e.getMessage());
+        }
     }
 
     @Operation(summary = "修改收货地址")
     @RequestMapping(value = "/update/{id}", method = RequestMethod.POST)
     @ResponseBody
     public CommonResult update(@PathVariable Long id, @RequestBody UmsMemberReceiveAddress address) {
-        int count = memberReceiveAddressService.update(id, address);
-        if (count > 0) {
-            return CommonResult.success(count);
+        if (id == null) {
+            return CommonResult.validateFailed("地址id不能为空");
         }
-        return CommonResult.failed();
+        try {
+            int count = memberReceiveAddressService.update(id, address);
+            if (count > 0) {
+                return CommonResult.success(count);
+            }
+            return CommonResult.failed("地址不存在或无权操作");
+        } catch (IllegalArgumentException e) {
+            return CommonResult.validateFailed(e.getMessage());
+        }
     }
 
     @Operation(summary = "获取所有收货地址")
@@ -67,7 +85,13 @@ public class UmsMemberReceiveAddressController {
     @RequestMapping(value = "/{id}", method = RequestMethod.GET)
     @ResponseBody
     public CommonResult<UmsMemberReceiveAddress> getItem(@PathVariable Long id) {
+        if (id == null) {
+            return CommonResult.validateFailed("地址id不能为空");
+        }
         UmsMemberReceiveAddress address = memberReceiveAddressService.getItem(id);
+        if (address == null) {
+            return CommonResult.failed("地址不存在或无权访问");
+        }
         return CommonResult.success(address);
     }
 }
