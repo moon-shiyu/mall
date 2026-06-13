@@ -61,4 +61,18 @@
         GROUP BY
             r.id
     </select>
+    <insert id="insertRoleMenuRelationList">
+        INSERT INTO ums_role_menu_relation (role_id, menu_id) VALUES
+        <foreach collection="list" item="item" index="index" separator=",">
+            (#{item.roleId,jdbcType=BIGINT},
+            #{item.menuId,jdbcType=BIGINT})
+        </foreach>
+    </insert>
+    <insert id="insertRoleResourceRelationList">
+        INSERT INTO ums_role_resource_relation (role_id, resource_id) VALUES
+        <foreach collection="list" item="item" index="index" separator=",">
+            (#{item.roleId,jdbcType=BIGINT},
+            #{item.resourceId,jdbcType=BIGINT})
+        </foreach>
+    </insert>
 </mapper>
