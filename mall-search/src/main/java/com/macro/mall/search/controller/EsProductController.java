@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -81,10 +82,16 @@ public class EsProductController {
     public CommonResult<CommonPage<EsProduct>> search(@RequestParam(required = false) String keyword,
                                                       @RequestParam(required = false) Long brandId,
                                                       @RequestParam(required = false) Long productCategoryId,
+                                                      @RequestParam(required = false) Integer publishStatus,
+                                                      @RequestParam(required = false) Integer minStock,
+                                                      @RequestParam(required = false) Integer maxStock,
+                                                      @RequestParam(required = false) BigDecimal minPrice,
+                                                      @RequestParam(required = false) BigDecimal maxPrice,
                                                       @RequestParam(required = false, defaultValue = "0") Integer pageNum,
                                                       @RequestParam(required = false, defaultValue = "5") Integer pageSize,
                                                       @RequestParam(required = false, defaultValue = "0") Integer sort) {
-        Page<EsProduct> esProductPage = esProductService.search(keyword, brandId, productCategoryId, pageNum, pageSize, sort);
+        Page<EsProduct> esProductPage = esProductService.search(keyword, brandId, productCategoryId,
+                publishStatus, minStock, maxStock, minPrice, maxPrice, pageNum, pageSize, sort);
         return CommonResult.success(CommonPage.restPage(esProductPage));
     }
 

@@ -44,6 +44,7 @@ public class EsProduct implements Serializable {
     private Integer newStatus;
     private Integer recommandStatus;
     private Integer stock;
+    private Integer publishStatus;
     private Integer promotionType;
     private Integer sort;
     @Field(type = FieldType.Nested, fielddata = true)

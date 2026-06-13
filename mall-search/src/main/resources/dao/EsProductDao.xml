@@ -30,6 +30,7 @@
             p.promotion_type promotionType,
             p.keywords keywords,
             p.sort sort,
+            p.publish_status publishStatus,
             pav.id attr_id,
             pav.value attr_value,
             pav.product_attribute_id attr_product_attribute_id,
