@@ -26,6 +26,7 @@
             p.sale sale,
             p.new_status newStatus,
             p.recommand_status recommandStatus,
+            p.publish_status publishStatus,
             p.stock stock,
             p.promotion_type promotionType,
             p.keywords keywords,
@@ -38,7 +39,7 @@
         from pms_product p
         left join pms_product_attribute_value pav on p.id = pav.product_id
         left join pms_product_attribute pa on pav.product_attribute_id= pa.id
-        where delete_status = 0 and publish_status = 1
+        where delete_status = 0
         <if test="id!=null">
             and p.id=#{id}
         </if>

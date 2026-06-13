@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -76,15 +77,25 @@ public class EsProductController {
 
     @Operation(summary = "综合搜索、筛选、排序")
     @Parameter(name = "sort", description = "排序字段:0->按相关度；1->按新品；2->按销量；3->价格从低到高；4->价格从高到低", in = ParameterIn.QUERY, schema = @Schema(type = "integer",defaultValue = "0",allowableValues = {"0","1","2","3","4"}))
+    @Parameter(name = "publishStatus", description = "上架状态:0->下架；1->上架", in = ParameterIn.QUERY)
+    @Parameter(name = "stockMin", description = "库存下限(含)", in = ParameterIn.QUERY)
+    @Parameter(name = "stockMax", description = "库存上限(含)", in = ParameterIn.QUERY)
+    @Parameter(name = "priceMin", description = "价格下限(含)", in = ParameterIn.QUERY)
+    @Parameter(name = "priceMax", description = "价格上限(含)", in = ParameterIn.QUERY)
     @RequestMapping(value = "/search", method = RequestMethod.GET)
     @ResponseBody
     public CommonResult<CommonPage<EsProduct>> search(@RequestParam(required = false) String keyword,
                                                       @RequestParam(required = false) Long brandId,
                                                       @RequestParam(required = false) Long productCategoryId,
+                                                      @RequestParam(required = false) Integer publishStatus,
+                                                      @RequestParam(required = false) Integer stockMin,
+                                                      @RequestParam(required = false) Integer stockMax,
+                                                      @RequestParam(required = false) BigDecimal priceMin,
+                                                      @RequestParam(required = false) BigDecimal priceMax,
                                                       @RequestParam(required = false, defaultValue = "0") Integer pageNum,
                                                       @RequestParam(required = false, defaultValue = "5") Integer pageSize,
                                                       @RequestParam(required = false, defaultValue = "0") Integer sort) {
-        Page<EsProduct> esProductPage = esProductService.search(keyword, brandId, productCategoryId, pageNum, pageSize, sort);
+        Page<EsProduct> esProductPage = esProductService.search(keyword, brandId, productCategoryId, publishStatus, stockMin, stockMax, priceMin, priceMax, pageNum, pageSize, sort);
         return CommonResult.success(CommonPage.restPage(esProductPage));
     }
 

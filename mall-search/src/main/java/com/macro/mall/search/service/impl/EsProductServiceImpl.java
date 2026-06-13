@@ -7,7 +7,9 @@ import co.elastic.clients.elasticsearch._types.aggregations.*;
 import co.elastic.clients.elasticsearch._types.aggregations.Aggregation;
 import co.elastic.clients.elasticsearch._types.query_dsl.*;
 import co.elastic.clients.elasticsearch._types.query_dsl.QueryBuilders;
+import co.elastic.clients.json.JsonData;
 import co.elastic.clients.util.ObjectBuilder;
+import com.macro.mall.common.exception.Asserts;
 import com.macro.mall.search.dao.EsProductDao;
 import com.macro.mall.search.domain.EsProduct;
 import com.macro.mall.search.domain.EsProductRelatedInfo;
@@ -23,6 +25,7 @@ import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import java.math.BigDecimal;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -90,25 +93,66 @@ public class EsProductServiceImpl implements EsProductService {
     }
 
     @Override
-    public Page<EsProduct> search(String keyword, Long brandId, Long productCategoryId, Integer pageNum, Integer pageSize,Integer sort) {
+    public Page<EsProduct> search(String keyword, Long brandId, Long productCategoryId,
+                                  Integer publishStatus, Integer stockMin, Integer stockMax,
+                                  BigDecimal priceMin, BigDecimal priceMax,
+                                  Integer pageNum, Integer pageSize, Integer sort) {
+        //区间参数校验，非法时返回清晰错误（由GlobalExceptionHandler统一转换为CommonResult.failed）
+        if (stockMin != null && stockMin < 0) {
+            Asserts.fail("库存下限不能为负数");
+        }
+        if (stockMin != null && stockMax != null && stockMin > stockMax) {
+            Asserts.fail("库存区间不合法：stockMin 不能大于 stockMax");
+        }
+        if (priceMin != null && priceMin.compareTo(BigDecimal.ZERO) < 0) {
+            Asserts.fail("价格下限不能为负数");
+        }
+        if (priceMin != null && priceMax != null && priceMin.compareTo(priceMax) > 0) {
+            Asserts.fail("价格区间不合法：priceMin 不能大于 priceMax");
+        }
         Pageable pageable = PageRequest.of(pageNum, pageSize);
         NativeQueryBuilder nativeQueryBuilder = new NativeQueryBuilder();
         //分页
         nativeQueryBuilder.withPageable(pageable);
-        //过滤
-        if (brandId != null || productCategoryId != null) {
-            Query boolQuery = QueryBuilders.bool(builder -> {
-                if (brandId != null) {
-                    builder.must(QueryBuilders.term(b -> b.field("brandId").value(brandId)));
-                }
-                if (productCategoryId != null) {
-                    builder.must(QueryBuilders.term(b -> b.field("productCategoryId").value(productCategoryId)));
-                }
-                return builder;
-            });
-            nativeQueryBuilder.withFilter(boolQuery);
+        //过滤：品牌、分类、上架状态、库存区间、价格区间合并到一个 bool.filter，过滤不影响相关度打分
+        List<Query> filterList = new ArrayList<>();
+        if (brandId != null) {
+            filterList.add(QueryBuilders.term(b -> b.field("brandId").value(brandId)));
         }
-        //搜索
+        if (productCategoryId != null) {
+            filterList.add(QueryBuilders.term(b -> b.field("productCategoryId").value(productCategoryId)));
+        }
+        if (publishStatus != null) {
+            filterList.add(QueryBuilders.term(b -> b.field("publishStatus").value(publishStatus.longValue())));
+        }
+        if (stockMin != null || stockMax != null) {
+            filterList.add(QueryBuilders.range(r -> r.untyped(u -> {
+                u.field("stock");
+                if (stockMin != null) {
+                    u.gte(JsonData.of(stockMin));
+                }
+                if (stockMax != null) {
+                    u.lte(JsonData.of(stockMax));
+                }
+                return u;
+            })));
+        }
+        if (priceMin != null || priceMax != null) {
+            filterList.add(QueryBuilders.range(r -> r.untyped(u -> {
+                u.field("price");
+                if (priceMin != null) {
+                    u.gte(JsonData.of(priceMin));
+                }
+                if (priceMax != null) {
+                    u.lte(JsonData.of(priceMax));
+                }
+                return u;
+            })));
+        }
+        if (!filterList.isEmpty()) {
+            nativeQueryBuilder.withFilter(QueryBuilders.bool(b -> b.filter(filterList)));
+        }
+        //搜索：空关键词使用 matchAll；非空关键词按 name/subTitle/keywords 加权
         if (StrUtil.isEmpty(keyword)) {
             nativeQueryBuilder.withQuery(QueryBuilders.matchAll(builder -> builder));
         } else {
@@ -131,30 +175,46 @@ public class EsProductServiceImpl implements EsProductService {
                     .minScore(2.0);
             nativeQueryBuilder.withQuery(builder -> builder.functionScore(functionScoreQueryBuilder.build()));
         }
-        //排序
-        if(sort==1){
-            //按新品从新到旧
-            nativeQueryBuilder.withSort(Sort.by(Sort.Order.desc("id")));
-        }else if(sort==2){
-            //按销量从高到低
-            nativeQueryBuilder.withSort(Sort.by(Sort.Order.desc("sale")));
-        }else if(sort==3){
-            //按价格从低到高
-            nativeQueryBuilder.withSort(Sort.by(Sort.Order.asc("price")));
-        }else if(sort==4){
-            //按价格从高到低
-            nativeQueryBuilder.withSort(Sort.by(Sort.Order.desc("price")));
+        //排序：明确区分相关度排序(sort=0)与业务字段排序(sort=1..4)
+        int sortType = sort == null ? 0 : sort;
+        Sort businessSort = null;
+        switch (sortType) {
+            case 1:
+                //按新品从新到旧
+                businessSort = Sort.by(Sort.Order.desc("id"));
+                break;
+            case 2:
+                //按销量从高到低
+                businessSort = Sort.by(Sort.Order.desc("sale"));
+                break;
+            case 3:
+                //按价格从低到高
+                businessSort = Sort.by(Sort.Order.asc("price"));
+                break;
+            case 4:
+                //按价格从高到低
+                businessSort = Sort.by(Sort.Order.desc("price"));
+                break;
+            default:
+                //sort=0 或其它取值：按相关度
+                break;
         }
-        //按相关度
-        nativeQueryBuilder.withSort(Sort.by(Sort.Order.desc("_score")));
+        if (businessSort != null) {
+            //业务字段为主排序，_score 仅作次级排序（tie-breaker），不覆盖主排序
+            nativeQueryBuilder.withSort(businessSort);
+            nativeQueryBuilder.withSort(Sort.by(Sort.Order.desc("_score")));
+        } else {
+            //按相关度排序
+            nativeQueryBuilder.withSort(Sort.by(Sort.Order.desc("_score")));
+        }
         NativeQuery nativeQuery = nativeQueryBuilder.build();
         LOGGER.info("DSL:{}", nativeQuery.getQuery().toString());
         SearchHits<EsProduct> searchHits = elasticsearchTemplate.search(nativeQuery, EsProduct.class);
-        if(searchHits.getTotalHits()<=0){
-            return new PageImpl<>(ListUtil.empty(),pageable,0);
+        if (searchHits.getTotalHits() <= 0) {
+            return new PageImpl<>(ListUtil.empty(), pageable, 0);
         }
         List<EsProduct> searchProductList = searchHits.stream().map(SearchHit::getContent).collect(Collectors.toList());
-        return new PageImpl<>(searchProductList,pageable,searchHits.getTotalHits());
+        return new PageImpl<>(searchProductList, pageable, searchHits.getTotalHits());
     }
 
     @Override
@@ -244,44 +304,61 @@ public class EsProductServiceImpl implements EsProductService {
      */
     private EsProductRelatedInfo convertProductRelatedInfo(SearchHits<EsProduct> response) {
         EsProductRelatedInfo productRelatedInfo = new EsProductRelatedInfo();
-        Map<String, ElasticsearchAggregation> esAggregationMap = ((ElasticsearchAggregations) response.getAggregations()).aggregationsAsMap();
+        List<String> brandNameList = new ArrayList<>();
+        List<String> productCategoryNameList = new ArrayList<>();
+        List<EsProductRelatedInfo.ProductAttr> attrList = new ArrayList<>();
+        productRelatedInfo.setBrandNames(brandNameList);
+        productRelatedInfo.setProductCategoryNames(productCategoryNameList);
+        productRelatedInfo.setProductAttrs(attrList);
+        //无聚合结果（无命中或未返回聚合）时直接返回空集合，避免空指针
+        if (!(response.getAggregations() instanceof ElasticsearchAggregations esAggregations)) {
+            return productRelatedInfo;
+        }
+        Map<String, ElasticsearchAggregation> esAggregationMap = esAggregations.aggregationsAsMap();
         //设置品牌
         ElasticsearchAggregation brandNames = esAggregationMap.get("brandNames");
-        List<String> brandNameList = new ArrayList<>();
-        List<StringTermsBucket> brandNameBuckets = ((StringTermsAggregate) brandNames.aggregation().getAggregate()._get()).buckets().array();
-        for(int i = 0; i<brandNameBuckets.size(); i++){
-            brandNameList.add(brandNameBuckets.get(i).key().stringValue());
+        if (brandNames != null) {
+            List<StringTermsBucket> brandNameBuckets = ((StringTermsAggregate) brandNames.aggregation().getAggregate()._get()).buckets().array();
+            for (StringTermsBucket bucket : brandNameBuckets) {
+                brandNameList.add(bucket.key().stringValue());
+            }
         }
-        productRelatedInfo.setBrandNames(brandNameList);
         //设置分类
         ElasticsearchAggregation productCategoryNames = esAggregationMap.get("productCategoryNames");
-        List<String> productCategoryNameList = new ArrayList<>();
-        List<StringTermsBucket> productCategoryNameBuckets = ((StringTermsAggregate) productCategoryNames.aggregation().getAggregate()._get()).buckets().array();
-        for(int i = 0; i<productCategoryNameBuckets.size(); i++){
-            productCategoryNameList.add(productCategoryNameBuckets.get(i).key().stringValue());
+        if (productCategoryNames != null) {
+            List<StringTermsBucket> productCategoryNameBuckets = ((StringTermsAggregate) productCategoryNames.aggregation().getAggregate()._get()).buckets().array();
+            for (StringTermsBucket bucket : productCategoryNameBuckets) {
+                productCategoryNameList.add(bucket.key().stringValue());
+            }
         }
-        productRelatedInfo.setProductCategoryNames(productCategoryNameList);
-        //设置参数
+        //设置参数（去除type=0的属性后聚合），逐层判空避免空指针
         ElasticsearchAggregation productAttrs = esAggregationMap.get("allAttrValues");
-        List<LongTermsBucket> attrIdBuckets = ((LongTermsAggregate) ((FilterAggregate) ((NestedAggregate) productAttrs.aggregation().getAggregate()._get()).aggregations().get("productAttrs")._get()).aggregations().get("attrIds")._get()).buckets().array();
-        List<EsProductRelatedInfo.ProductAttr> attrList = new ArrayList<>();
-        for (LongTermsBucket item : attrIdBuckets) {
-            EsProductRelatedInfo.ProductAttr attr = new EsProductRelatedInfo.ProductAttr();
-            attr.setAttrId(item.key());
-            List<String> attrValueList = new ArrayList<>();
-            List<StringTermsBucket> attrValues = ((StringTermsAggregate) item.aggregations().get("attrValues")._get()).buckets().array();
-            List<StringTermsBucket> attrNames = ((StringTermsAggregate) item.aggregations().get("attrNames")._get()).buckets().array();
-            for (StringTermsBucket attrValue : attrValues) {
-                attrValueList.add(attrValue.key().stringValue());
+        if (productAttrs != null) {
+            NestedAggregate nestedAggregate = (NestedAggregate) productAttrs.aggregation().getAggregate()._get();
+            Aggregate productAttrsAggregate = nestedAggregate.aggregations().get("productAttrs");
+            if (productAttrsAggregate != null) {
+                Aggregate attrIdsAggregate = ((FilterAggregate) productAttrsAggregate._get()).aggregations().get("attrIds");
+                if (attrIdsAggregate != null) {
+                    List<LongTermsBucket> attrIdBuckets = ((LongTermsAggregate) attrIdsAggregate._get()).buckets().array();
+                    for (LongTermsBucket item : attrIdBuckets) {
+                        EsProductRelatedInfo.ProductAttr attr = new EsProductRelatedInfo.ProductAttr();
+                        attr.setAttrId(item.key());
+                        List<String> attrValueList = new ArrayList<>();
+                        List<StringTermsBucket> attrValues = ((StringTermsAggregate) item.aggregations().get("attrValues")._get()).buckets().array();
+                        List<StringTermsBucket> attrNames = ((StringTermsAggregate) item.aggregations().get("attrNames")._get()).buckets().array();
+                        for (StringTermsBucket attrValue : attrValues) {
+                            attrValueList.add(attrValue.key().stringValue());
+                        }
+                        attr.setAttrValues(attrValueList);
+                        if (!CollectionUtils.isEmpty(attrNames)) {
+                            String attrName = attrNames.get(0).key().stringValue();
+                            attr.setAttrName(attrName);
+                        }
+                        attrList.add(attr);
+                    }
+                }
             }
-            attr.setAttrValues(attrValueList);
-            if(!CollectionUtils.isEmpty(attrNames)){
-                String attrName = attrNames.get(0).key().stringValue();
-                attr.setAttrName(attrName);
-            }
-            attrList.add(attr);
         }
-        productRelatedInfo.setProductAttrs(attrList);
         return productRelatedInfo;
     }
 }
