@@ -56,6 +56,9 @@ public class SmsCoupon implements Serializable {
     @Schema(title = "可领取的会员类型：0->无限时")
     private Integer memberLevel;
 
+    @Schema(title = "优惠券状态：0->未开始；1->进行中；2->已结束；3->已停用")
+    private Integer status;
+
     private static final long serialVersionUID = 1L;
 
     public Long getId() {
@@ -202,6 +205,14 @@ public class SmsCoupon implements Serializable {
         this.memberLevel = memberLevel;
     }
 
+    public Integer getStatus() {
+        return status;
+    }
+
+    public void setStatus(Integer status) {
+        this.status = status;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -226,6 +237,7 @@ public class SmsCoupon implements Serializable {
         sb.append(", enableTime=").append(enableTime);
         sb.append(", code=").append(code);
         sb.append(", memberLevel=").append(memberLevel);
+        sb.append(", status=").append(status);
         sb.append(", serialVersionUID=").append(serialVersionUID);
         sb.append("]");
         return sb.toString();

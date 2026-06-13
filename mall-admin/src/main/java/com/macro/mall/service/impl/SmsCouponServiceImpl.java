@@ -6,6 +6,7 @@ import com.macro.mall.dao.SmsCouponDao;
 import com.macro.mall.dao.SmsCouponProductCategoryRelationDao;
 import com.macro.mall.dao.SmsCouponProductRelationDao;
 import com.macro.mall.dto.SmsCouponParam;
+import com.macro.mall.dto.SmsCouponQueryParam;
 import com.macro.mall.mapper.SmsCouponMapper;
 import com.macro.mall.mapper.SmsCouponProductCategoryRelationMapper;
 import com.macro.mall.mapper.SmsCouponProductRelationMapper;
@@ -34,6 +35,7 @@ public class SmsCouponServiceImpl implements SmsCouponService {
     private SmsCouponProductCategoryRelationDao productCategoryRelationDao;
     @Autowired
     private SmsCouponDao couponDao;
+
     @Override
     public int create(SmsCouponParam couponParam) {
         couponParam.setCount(couponParam.getPublishCount());
@@ -41,19 +43,25 @@ public class SmsCouponServiceImpl implements SmsCouponService {
         couponParam.setReceiveCount(0);
         //插入优惠券表
         int count = couponMapper.insert(couponParam);
-        //插入优惠券和商品关系表
-        if(couponParam.getUseType().equals(2)){
-            for(SmsCouponProductRelation productRelation:couponParam.getProductRelationList()){
-                productRelation.setCouponId(couponParam.getId());
+        //插入优惠券和商品关系表（null-safe）
+        if (Integer.valueOf(2).equals(couponParam.getUseType())) {
+            List<SmsCouponProductRelation> relations = couponParam.getProductRelationList();
+            if (relations != null && !relations.isEmpty()) {
+                for (SmsCouponProductRelation productRelation : relations) {
+                    productRelation.setCouponId(couponParam.getId());
+                }
+                productRelationDao.insertList(relations);
             }
-            productRelationDao.insertList(couponParam.getProductRelationList());
         }
-        //插入优惠券和商品分类关系表
-        if(couponParam.getUseType().equals(1)){
-            for (SmsCouponProductCategoryRelation couponProductCategoryRelation : couponParam.getProductCategoryRelationList()) {
-                couponProductCategoryRelation.setCouponId(couponParam.getId());
+        //插入优惠券和商品分类关系表（null-safe）
+        if (Integer.valueOf(1).equals(couponParam.getUseType())) {
+            List<SmsCouponProductCategoryRelation> relations = couponParam.getProductCategoryRelationList();
+            if (relations != null && !relations.isEmpty()) {
+                for (SmsCouponProductCategoryRelation couponProductCategoryRelation : relations) {
+                    couponProductCategoryRelation.setCouponId(couponParam.getId());
+                }
+                productCategoryRelationDao.insertList(relations);
             }
-            productCategoryRelationDao.insertList(couponParam.getProductCategoryRelationList());
         }
         return count;
     }
@@ -84,37 +92,87 @@ public class SmsCouponServiceImpl implements SmsCouponService {
     @Override
     public int update(Long id, SmsCouponParam couponParam) {
         couponParam.setId(id);
-        int count =couponMapper.updateByPrimaryKey(couponParam);
-        //删除后插入优惠券和商品关系表
-        if(couponParam.getUseType().equals(2)){
-            for(SmsCouponProductRelation productRelation:couponParam.getProductRelationList()){
-                productRelation.setCouponId(couponParam.getId());
+        int count = couponMapper.updateByPrimaryKey(couponParam);
+        // 无论 useType 如何变化，先清理所有旧关联，避免切换 useType 时产生孤立数据
+        deleteProductRelation(id);
+        deleteProductCategoryRelation(id);
+        //按新 useType 插入关联（null-safe）
+        if (Integer.valueOf(2).equals(couponParam.getUseType())) {
+            List<SmsCouponProductRelation> relations = couponParam.getProductRelationList();
+            if (relations != null && !relations.isEmpty()) {
+                for (SmsCouponProductRelation productRelation : relations) {
+                    productRelation.setCouponId(couponParam.getId());
+                }
+                productRelationDao.insertList(relations);
             }
-            deleteProductRelation(id);
-            productRelationDao.insertList(couponParam.getProductRelationList());
         }
-        //删除后插入优惠券和商品分类关系表
-        if(couponParam.getUseType().equals(1)){
-            for (SmsCouponProductCategoryRelation couponProductCategoryRelation : couponParam.getProductCategoryRelationList()) {
-                couponProductCategoryRelation.setCouponId(couponParam.getId());
+        if (Integer.valueOf(1).equals(couponParam.getUseType())) {
+            List<SmsCouponProductCategoryRelation> relations = couponParam.getProductCategoryRelationList();
+            if (relations != null && !relations.isEmpty()) {
+                for (SmsCouponProductCategoryRelation couponProductCategoryRelation : relations) {
+                    couponProductCategoryRelation.setCouponId(couponParam.getId());
+                }
+                productCategoryRelationDao.insertList(relations);
             }
-            deleteProductCategoryRelation(id);
-            productCategoryRelationDao.insertList(couponParam.getProductCategoryRelationList());
         }
         return count;
     }
 
     @Override
-    public List<SmsCoupon> list(String name, Integer type, Integer pageSize, Integer pageNum) {
+    public List<SmsCoupon> list(SmsCouponQueryParam queryParam, Integer pageSize, Integer pageNum) {
         SmsCouponExample example = new SmsCouponExample();
         SmsCouponExample.Criteria criteria = example.createCriteria();
-        if(!StrUtil.isEmpty(name)){
-            criteria.andNameLike("%"+name+"%");
+
+        if (queryParam != null) {
+            // 名称模糊匹配（向后兼容）
+            if (!StrUtil.isEmpty(queryParam.getName())) {
+                criteria.andNameLike("%" + queryParam.getName() + "%");
+            }
+            // 优惠券类型精确匹配（向后兼容）
+            if (queryParam.getType() != null) {
+                criteria.andTypeEqualTo(queryParam.getType());
+            }
+            // 优惠券状态精确匹配
+            if (queryParam.getStatus() != null) {
+                criteria.andStatusEqualTo(queryParam.getStatus());
+            }
+            // 使用类型精确匹配
+            if (queryParam.getUseType() != null) {
+                criteria.andUseTypeEqualTo(queryParam.getUseType());
+            }
+            // 有效期起始时间范围
+            if (queryParam.getStartTimeBegin() != null) {
+                criteria.andStartTimeGreaterThanOrEqualTo(queryParam.getStartTimeBegin());
+            }
+            if (queryParam.getStartTimeEnd() != null) {
+                criteria.andStartTimeLessThanOrEqualTo(queryParam.getStartTimeEnd());
+            }
+            // 有效期结束时间范围
+            if (queryParam.getEndTimeBegin() != null) {
+                criteria.andEndTimeGreaterThanOrEqualTo(queryParam.getEndTimeBegin());
+            }
+            if (queryParam.getEndTimeEnd() != null) {
+                criteria.andEndTimeLessThanOrEqualTo(queryParam.getEndTimeEnd());
+            }
+            // 领取数量区间
+            if (queryParam.getReceiveCountMin() != null && queryParam.getReceiveCountMax() != null) {
+                criteria.andReceiveCountBetween(queryParam.getReceiveCountMin(), queryParam.getReceiveCountMax());
+            } else if (queryParam.getReceiveCountMin() != null) {
+                criteria.andReceiveCountGreaterThanOrEqualTo(queryParam.getReceiveCountMin());
+            } else if (queryParam.getReceiveCountMax() != null) {
+                criteria.andReceiveCountLessThanOrEqualTo(queryParam.getReceiveCountMax());
+            }
+            // 剩余数量区间
+            if (queryParam.getCountMin() != null && queryParam.getCountMax() != null) {
+                criteria.andCountBetween(queryParam.getCountMin(), queryParam.getCountMax());
+            } else if (queryParam.getCountMin() != null) {
+                criteria.andCountGreaterThanOrEqualTo(queryParam.getCountMin());
+            } else if (queryParam.getCountMax() != null) {
+                criteria.andCountLessThanOrEqualTo(queryParam.getCountMax());
+            }
         }
-        if(type!=null){
-            criteria.andTypeEqualTo(type);
-        }
-        PageHelper.startPage(pageNum,pageSize);
+
+        PageHelper.startPage(pageNum, pageSize);
         return couponMapper.selectByExample(example);
     }
 

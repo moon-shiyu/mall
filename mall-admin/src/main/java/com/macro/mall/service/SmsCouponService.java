@@ -1,6 +1,7 @@
 package com.macro.mall.service;
 
 import com.macro.mall.dto.SmsCouponParam;
+import com.macro.mall.dto.SmsCouponQueryParam;
 import com.macro.mall.model.SmsCoupon;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,7 +33,7 @@ public interface SmsCouponService {
     /**
      * 分页获取优惠券列表
      */
-    List<SmsCoupon> list(String name, Integer type, Integer pageSize, Integer pageNum);
+    List<SmsCoupon> list(SmsCouponQueryParam queryParam, Integer pageSize, Integer pageNum);
 
     /**
      * 获取优惠券详情

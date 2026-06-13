@@ -3,12 +3,14 @@ package com.macro.mall.controller;
 import com.macro.mall.common.api.CommonPage;
 import com.macro.mall.common.api.CommonResult;
 import com.macro.mall.dto.SmsCouponParam;
+import com.macro.mall.dto.SmsCouponQueryParam;
 import com.macro.mall.model.SmsCoupon;
 import com.macro.mall.service.SmsCouponService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,7 +28,7 @@ public class SmsCouponController {
     @Operation(summary = "添加优惠券")
     @RequestMapping(value = "/create", method = RequestMethod.POST)
     @ResponseBody
-    public CommonResult add(@RequestBody SmsCouponParam couponParam) {
+    public CommonResult add(@Validated @RequestBody SmsCouponParam couponParam) {
         int count = couponService.create(couponParam);
         if(count>0){
             return CommonResult.success(count);
@@ -48,7 +50,7 @@ public class SmsCouponController {
     @Operation(summary = "修改优惠券")
     @RequestMapping(value = "/update/{id}", method = RequestMethod.POST)
     @ResponseBody
-    public CommonResult update(@PathVariable Long id,@RequestBody SmsCouponParam couponParam) {
+    public CommonResult update(@PathVariable Long id,@Validated @RequestBody SmsCouponParam couponParam) {
         int count = couponService.update(id,couponParam);
         if(count>0){
             return CommonResult.success(count);
@@ -60,11 +62,10 @@ public class SmsCouponController {
     @RequestMapping(value = "/list", method = RequestMethod.GET)
     @ResponseBody
     public CommonResult<CommonPage<SmsCoupon>> list(
-            @RequestParam(value = "name",required = false) String name,
-            @RequestParam(value = "type",required = false) Integer type,
+            SmsCouponQueryParam queryParam,
             @RequestParam(value = "pageSize", defaultValue = "5") Integer pageSize,
             @RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum) {
-        List<SmsCoupon> couponList = couponService.list(name,type,pageSize,pageNum);
+        List<SmsCoupon> couponList = couponService.list(queryParam, pageSize, pageNum);
         return CommonResult.success(CommonPage.restPage(couponList));
     }
 
