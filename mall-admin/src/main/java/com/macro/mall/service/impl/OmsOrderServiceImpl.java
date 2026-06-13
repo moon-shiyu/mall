@@ -1,6 +1,8 @@
 package com.macro.mall.service.impl;
 
+import cn.hutool.core.util.StrUtil;
 import com.github.pagehelper.PageHelper;
+import com.macro.mall.common.exception.ApiException;
 import com.macro.mall.dao.OmsOrderDao;
 import com.macro.mall.dao.OmsOrderOperateHistoryDao;
 import com.macro.mall.dto.*;
@@ -13,6 +15,8 @@ import com.macro.mall.service.OmsOrderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -34,7 +38,56 @@ public class OmsOrderServiceImpl implements OmsOrderService {
 
     @Override
     public List<OmsOrder> list(OmsOrderQueryParam queryParam, Integer pageSize, Integer pageNum) {
+        validateQueryParam(queryParam);
         PageHelper.startPage(pageNum, pageSize);
+        return orderDao.getList(queryParam);
+    }
+
+    @Override
+    public void validateQueryParam(OmsOrderQueryParam queryParam) {
+        if (queryParam == null) {
+            return;
+        }
+        // 校验时间格式及逻辑
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        sdf.setLenient(false);
+        Date fromDate = null;
+        Date toDate = null;
+        if (StrUtil.isNotBlank(queryParam.getCreateTimeFrom())) {
+            try {
+                fromDate = sdf.parse(queryParam.getCreateTimeFrom());
+            } catch (ParseException e) {
+                throw new ApiException("起始时间格式错误，正确格式：yyyy-MM-dd HH:mm:ss");
+            }
+        }
+        if (StrUtil.isNotBlank(queryParam.getCreateTimeTo())) {
+            try {
+                toDate = sdf.parse(queryParam.getCreateTimeTo());
+            } catch (ParseException e) {
+                throw new ApiException("截止时间格式错误，正确格式：yyyy-MM-dd HH:mm:ss");
+            }
+        }
+        if (fromDate != null && toDate != null && fromDate.after(toDate)) {
+            throw new ApiException("起始时间不能晚于截止时间");
+        }
+        // 校验手机号格式（中国大陆11位手机号）
+        if (StrUtil.isNotBlank(queryParam.getReceiverPhone())
+                && !queryParam.getReceiverPhone().matches("^1[3-9]\\d{9}$")) {
+            throw new ApiException("收货人手机号格式不正确");
+        }
+        // 校验状态集合中的合法值（0-5）
+        if (queryParam.getStatusList() != null) {
+            for (Integer st : queryParam.getStatusList()) {
+                if (st == null || st < 0 || st > 5) {
+                    throw new ApiException("订单状态值不合法，允许范围：0-5");
+                }
+            }
+        }
+    }
+
+    @Override
+    public List<OmsOrder> exportList(OmsOrderQueryParam queryParam) {
+        validateQueryParam(queryParam);
         return orderDao.getList(queryParam);
     }
 

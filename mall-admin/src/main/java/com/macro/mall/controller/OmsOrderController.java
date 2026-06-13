@@ -11,6 +11,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -32,6 +37,46 @@ public class OmsOrderController {
                                                    @RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum) {
         List<OmsOrder> orderList = orderService.list(queryParam, pageSize, pageNum);
         return CommonResult.success(CommonPage.restPage(orderList));
+    }
+
+    @Operation(summary = "导出订单列表（CSV），与查询口径一致")
+    @RequestMapping(value = "/export", method = RequestMethod.GET)
+    @ResponseBody
+    public void exportOrder(OmsOrderQueryParam queryParam, HttpServletResponse response) throws IOException {
+        List<OmsOrder> orderList = orderService.exportList(queryParam);
+        response.setContentType("text/csv;charset=UTF-8");
+        response.setHeader("Content-Disposition", "attachment;filename=order_export.csv");
+        OutputStreamWriter osw = new OutputStreamWriter(response.getOutputStream(), StandardCharsets.UTF_8);
+        PrintWriter writer = new PrintWriter(osw);
+        // BOM for Excel UTF-8
+        writer.write('\uFEFF');
+        writer.println("订单ID,订单编号,收货人,收货人电话,订单状态,支付方式,订单来源,下单时间");
+        for (OmsOrder order : orderList) {
+            writer.printf("%s,%s,%s,%s,%s,%s,%s,%s%n",
+                    order.getId(),
+                    csvEscape(order.getOrderSn()),
+                    csvEscape(order.getReceiverName()),
+                    csvEscape(order.getReceiverPhone()),
+                    order.getStatus(),
+                    order.getPayType(),
+                    order.getSourceType(),
+                    order.getCreateTime());
+        }
+        writer.flush();
+    }
+
+    /**
+     * CSV字段转义：包含逗号、双引号、换行符的字段用双引号包裹，内部双引号转义为两个双引号
+     */
+    private String csvEscape(Object value) {
+        if (value == null) {
+            return "";
+        }
+        String str = value.toString();
+        if (str.contains(",") || str.contains("\"") || str.contains("\n") || str.contains("\r")) {
+            return "\"" + str.replace("\"", "\"\"") + "\"";
+        }
+        return str;
     }
 
     @Operation(summary = "批量发货")

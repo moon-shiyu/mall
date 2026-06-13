@@ -14,17 +14,34 @@
         <if test="queryParam.orderSn!=null and queryParam.orderSn!=''">
             AND order_sn = #{queryParam.orderSn}
         </if>
-        <if test="queryParam.status!=null">
-            AND `status` = #{queryParam.status}
-        </if>
+        <choose>
+            <when test="queryParam.statusList!=null and queryParam.statusList.size()>0">
+                AND `status` IN
+                <foreach collection="queryParam.statusList" item="st" open="(" separator="," close=")">
+                    #{st}
+                </foreach>
+            </when>
+            <when test="queryParam.status!=null">
+                AND `status` = #{queryParam.status}
+            </when>
+        </choose>
         <if test="queryParam.sourceType!=null">
             AND source_type = #{queryParam.sourceType}
         </if>
         <if test="queryParam.orderType!=null">
             AND order_type = #{queryParam.orderType}
         </if>
+        <if test="queryParam.payType!=null">
+            AND pay_type = #{queryParam.payType}
+        </if>
         <if test="queryParam.createTime!=null and queryParam.createTime!=''">
             AND create_time LIKE concat(#{queryParam.createTime},"%")
+        </if>
+        <if test="queryParam.createTimeFrom!=null and queryParam.createTimeFrom!=''">
+            AND create_time &gt;= #{queryParam.createTimeFrom}
+        </if>
+        <if test="queryParam.createTimeTo!=null and queryParam.createTimeTo!=''">
+            AND create_time &lt;= #{queryParam.createTimeTo}
         </if>
         <if test="queryParam.receiverKeyword!=null and queryParam.receiverKeyword!=''">
             AND (
@@ -32,6 +49,10 @@
             OR receiver_phone LIKE concat("%",#{queryParam.receiverKeyword},"%")
             )
         </if>
+        <if test="queryParam.receiverPhone!=null and queryParam.receiverPhone!=''">
+            AND receiver_phone = #{queryParam.receiverPhone}
+        </if>
+        ORDER BY create_time DESC
     </select>
     <update id="delivery">
         UPDATE oms_order

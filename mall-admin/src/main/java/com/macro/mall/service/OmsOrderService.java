@@ -17,6 +17,16 @@ public interface OmsOrderService {
     List<OmsOrder> list(OmsOrderQueryParam queryParam, Integer pageSize, Integer pageNum);
 
     /**
+     * 校验查询参数合法性
+     */
+    void validateQueryParam(OmsOrderQueryParam queryParam);
+
+    /**
+     * 导出订单列表（与分页查询口径一致，不分页）
+     */
+    List<OmsOrder> exportList(OmsOrderQueryParam queryParam);
+
+    /**
      * 批量发货
      */
     @Transactional
