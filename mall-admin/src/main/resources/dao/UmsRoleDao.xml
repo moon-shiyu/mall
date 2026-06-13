@@ -61,4 +61,18 @@
         GROUP BY
             r.id
     </select>
+    <!--批量插入角色-菜单关系-->
+    <insert id="insertMenuList">
+        INSERT INTO ums_role_menu_relation (role_id, menu_id) VALUES
+        <foreach collection="list" separator="," item="item">
+            (#{item.roleId,jdbcType=BIGINT}, #{item.menuId,jdbcType=BIGINT})
+        </foreach>
+    </insert>
+    <!--批量插入角色-资源关系-->
+    <insert id="insertResourceList">
+        INSERT INTO ums_role_resource_relation (role_id, resource_id) VALUES
+        <foreach collection="list" separator="," item="item">
+            (#{item.roleId,jdbcType=BIGINT}, #{item.resourceId,jdbcType=BIGINT})
+        </foreach>
+    </insert>
 </mapper>

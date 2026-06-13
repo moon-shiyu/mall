@@ -107,6 +107,12 @@ public class UmsRoleController {
     @RequestMapping(value = "/allocMenu", method = RequestMethod.POST)
     @ResponseBody
     public CommonResult allocMenu(@RequestParam Long roleId, @RequestParam List<Long> menuIds) {
+        if (roleId == null) {
+            return CommonResult.validateFailed("角色ID不能为空");
+        }
+        if (menuIds == null) {
+            return CommonResult.validateFailed("菜单ID列表不能为null");
+        }
         int count = roleService.allocMenu(roleId, menuIds);
         return CommonResult.success(count);
     }
@@ -115,6 +121,12 @@ public class UmsRoleController {
     @RequestMapping(value = "/allocResource", method = RequestMethod.POST)
     @ResponseBody
     public CommonResult allocResource(@RequestParam Long roleId, @RequestParam List<Long> resourceIds) {
+        if (roleId == null) {
+            return CommonResult.validateFailed("角色ID不能为空");
+        }
+        if (resourceIds == null) {
+            return CommonResult.validateFailed("资源ID列表不能为null");
+        }
         int count = roleService.allocResource(roleId, resourceIds);
         return CommonResult.success(count);
     }
