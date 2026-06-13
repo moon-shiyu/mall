@@ -31,6 +31,7 @@ public interface OmsCartItemService {
     /**
      * 修改某个购物车商品的数量
      */
+    @Transactional
     int updateQuantity(Long id, Long memberId, Integer quantity);
 
     /**
