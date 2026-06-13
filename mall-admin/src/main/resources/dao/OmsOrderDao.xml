@@ -17,8 +17,17 @@
         <if test="queryParam.status!=null">
             AND `status` = #{queryParam.status}
         </if>
+        <if test="queryParam.statusList!=null and queryParam.statusList.size() > 0">
+            AND `status` IN
+            <foreach collection="queryParam.statusList" item="statusItem" open="(" separator="," close=")">
+                #{statusItem}
+            </foreach>
+        </if>
         <if test="queryParam.sourceType!=null">
             AND source_type = #{queryParam.sourceType}
+        </if>
+        <if test="queryParam.payType!=null">
+            AND pay_type = #{queryParam.payType}
         </if>
         <if test="queryParam.orderType!=null">
             AND order_type = #{queryParam.orderType}
@@ -26,12 +35,22 @@
         <if test="queryParam.createTime!=null and queryParam.createTime!=''">
             AND create_time LIKE concat(#{queryParam.createTime},"%")
         </if>
+        <if test="queryParam.createTimeStart!=null and queryParam.createTimeStart!=''">
+            AND create_time &gt;= #{queryParam.createTimeStart}
+        </if>
+        <if test="queryParam.createTimeEnd!=null and queryParam.createTimeEnd!=''">
+            AND create_time &lt;= #{queryParam.createTimeEnd}
+        </if>
         <if test="queryParam.receiverKeyword!=null and queryParam.receiverKeyword!=''">
             AND (
             receiver_name LIKE concat("%",#{queryParam.receiverKeyword},"%")
             OR receiver_phone LIKE concat("%",#{queryParam.receiverKeyword},"%")
             )
         </if>
+        <if test="queryParam.receiverPhone!=null and queryParam.receiverPhone!=''">
+            AND receiver_phone LIKE concat("%",#{queryParam.receiverPhone},"%")
+        </if>
+        ORDER BY create_time DESC, id DESC
     </select>
     <update id="delivery">
         UPDATE oms_order

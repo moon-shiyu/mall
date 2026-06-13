@@ -10,6 +10,7 @@ import com.macro.mall.model.OmsOrder;
 import com.macro.mall.model.OmsOrderExample;
 import com.macro.mall.model.OmsOrderOperateHistory;
 import com.macro.mall.service.OmsOrderService;
+import com.macro.mall.validator.OmsOrderQueryParamValidator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -34,6 +35,7 @@ public class OmsOrderServiceImpl implements OmsOrderService {
 
     @Override
     public List<OmsOrder> list(OmsOrderQueryParam queryParam, Integer pageSize, Integer pageNum) {
+        OmsOrderQueryParamValidator.validateAndNormalize(queryParam);
         PageHelper.startPage(pageNum, pageSize);
         return orderDao.getList(queryParam);
     }
