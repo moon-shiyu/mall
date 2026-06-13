@@ -17,10 +17,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -30,6 +32,17 @@ import java.util.stream.Collectors;
 @Service
 public class PmsProductServiceImpl implements PmsProductService {
     private static final Logger LOGGER = LoggerFactory.getLogger(PmsProductServiceImpl.class);
+
+    /**
+     * 排序字段 Java属性名 → 数据库列名映射（Controller层白名单校验后的二次映射）
+     */
+    private static final Map<String, String> SORT_FIELD_COLUMN_MAP = Map.of(
+            "price", "price",
+            "sale", "sale",
+            "stock", "stock",
+            "newStatus", "new_status",
+            "id", "id"
+    );
     @Autowired
     private PmsProductMapper productMapper;
     @Autowired
@@ -71,6 +84,7 @@ public class PmsProductServiceImpl implements PmsProductService {
         //创建商品
         PmsProduct product = productParam;
         product.setId(null);
+        product.setCreateTime(new Date());
         productMapper.insertSelective(product);
         //根据促销类型设置价格：会员价格、阶梯价格、满减价格
         Long productId = product.getId();
@@ -226,6 +240,49 @@ public class PmsProductServiceImpl implements PmsProductService {
         }
         if (productQueryParam.getProductCategoryId() != null) {
             criteria.andProductCategoryIdEqualTo(productQueryParam.getProductCategoryId());
+        }
+        // 价格区间筛选
+        BigDecimal priceMin = productQueryParam.getPriceMin();
+        BigDecimal priceMax = productQueryParam.getPriceMax();
+        if (priceMin != null && priceMax != null) {
+            if (priceMin.compareTo(priceMax) <= 0) {
+                criteria.andPriceBetween(priceMin, priceMax);
+            }
+        } else if (priceMin != null) {
+            criteria.andPriceGreaterThanOrEqualTo(priceMin);
+        } else if (priceMax != null) {
+            criteria.andPriceLessThanOrEqualTo(priceMax);
+        }
+        // 库存区间筛选
+        Integer stockMin = productQueryParam.getStockMin();
+        Integer stockMax = productQueryParam.getStockMax();
+        if (stockMin != null && stockMax != null) {
+            if (stockMin.compareTo(stockMax) <= 0) {
+                criteria.andStockBetween(stockMin, stockMax);
+            }
+        } else if (stockMin != null) {
+            criteria.andStockGreaterThanOrEqualTo(stockMin);
+        } else if (stockMax != null) {
+            criteria.andStockLessThanOrEqualTo(stockMax);
+        }
+        // 创建时间范围筛选
+        Date createTimeFrom = productQueryParam.getCreateTimeFrom();
+        Date createTimeTo = productQueryParam.getCreateTimeTo();
+        if (createTimeFrom != null && createTimeTo != null) {
+            if (createTimeFrom.compareTo(createTimeTo) <= 0) {
+                criteria.andCreateTimeBetween(createTimeFrom, createTimeTo);
+            }
+        } else if (createTimeFrom != null) {
+            criteria.andCreateTimeGreaterThanOrEqualTo(createTimeFrom);
+        } else if (createTimeTo != null) {
+            criteria.andCreateTimeLessThanOrEqualTo(createTimeTo);
+        }
+        // 排序（参数已在Controller层校验过白名单，此处做属性名→列名映射）
+        if (!StrUtil.isEmpty(productQueryParam.getSortField())) {
+            String sortField = SORT_FIELD_COLUMN_MAP.getOrDefault(
+                    productQueryParam.getSortField(), productQueryParam.getSortField());
+            String sortOrder = StrUtil.isEmpty(productQueryParam.getSortOrder()) ? "desc" : productQueryParam.getSortOrder().toLowerCase();
+            productExample.setOrderByClause(sortField + " " + sortOrder);
         }
         return productMapper.selectByExample(productExample);
     }

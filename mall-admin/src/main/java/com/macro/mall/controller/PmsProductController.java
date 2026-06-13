@@ -14,6 +14,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * 商品管理Controller
@@ -25,6 +26,16 @@ import java.util.List;
 public class PmsProductController {
     @Autowired
     private PmsProductService productService;
+
+    /**
+     * 允许的排序字段白名单
+     */
+    private static final Set<String> ALLOWED_SORT_FIELDS = Set.of("price", "sale", "stock", "newStatus", "id");
+
+    /**
+     * 允许的排序方向
+     */
+    private static final Set<String> ALLOWED_SORT_ORDERS = Set.of("asc", "desc");
 
     @Operation(summary = "创建商品")
     @RequestMapping(value = "/create", method = RequestMethod.POST)
@@ -64,6 +75,20 @@ public class PmsProductController {
     public CommonResult<CommonPage<PmsProduct>> getList(PmsProductQueryParam productQueryParam,
                                                         @RequestParam(value = "pageSize", defaultValue = "5") Integer pageSize,
                                                         @RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum) {
+        // 排序参数校验（白名单防SQL注入）
+        String sortField = productQueryParam.getSortField();
+        String sortOrder = productQueryParam.getSortOrder();
+        if (sortField != null && !sortField.isEmpty()) {
+            if (!ALLOWED_SORT_FIELDS.contains(sortField)) {
+                return CommonResult.validateFailed("排序字段不合法，允许的排序字段: price, sale, stock, newStatus, id");
+            }
+            if (sortOrder != null && !sortOrder.isEmpty()) {
+                if (!ALLOWED_SORT_ORDERS.contains(sortOrder.toLowerCase())) {
+                    return CommonResult.validateFailed("排序方向不合法，允许的排序方向: asc, desc");
+                }
+                productQueryParam.setSortOrder(sortOrder.toLowerCase());
+            }
+        }
         List<PmsProduct> productList = productService.list(productQueryParam, pageSize, pageNum);
         return CommonResult.success(CommonPage.restPage(productList));
     }
