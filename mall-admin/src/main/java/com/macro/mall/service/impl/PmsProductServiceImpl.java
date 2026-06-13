@@ -8,6 +8,7 @@ import com.macro.mall.dto.PmsProductParam;
 import com.macro.mall.dto.PmsProductQueryParam;
 import com.macro.mall.dto.PmsProductResult;
 import com.macro.mall.mapper.*;
+import com.macro.mall.common.exception.Asserts;
 import com.macro.mall.model.*;
 import com.macro.mall.service.PmsProductService;
 import org.slf4j.Logger;
@@ -21,6 +22,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -30,6 +32,15 @@ import java.util.stream.Collectors;
 @Service
 public class PmsProductServiceImpl implements PmsProductService {
     private static final Logger LOGGER = LoggerFactory.getLogger(PmsProductServiceImpl.class);
+    /**
+     * 商品列表排序字段白名单：对外字段名 -> 实际数据库列名，防止 order by SQL 注入
+     */
+    private static final Map<String, String> SORT_FIELD_WHITELIST = Map.of(
+            "price", "price",
+            "sale", "sale",
+            "stock", "stock",
+            "newStatus", "new_status"
+    );
     @Autowired
     private PmsProductMapper productMapper;
     @Autowired
@@ -227,7 +238,60 @@ public class PmsProductServiceImpl implements PmsProductService {
         if (productQueryParam.getProductCategoryId() != null) {
             criteria.andProductCategoryIdEqualTo(productQueryParam.getProductCategoryId());
         }
+        //价格区间（仅按非空边界过滤；上下界倒置时两条件并存，自然返回空集，行为稳定）
+        if (productQueryParam.getMinPrice() != null) {
+            criteria.andPriceGreaterThanOrEqualTo(productQueryParam.getMinPrice());
+        }
+        if (productQueryParam.getMaxPrice() != null) {
+            criteria.andPriceLessThanOrEqualTo(productQueryParam.getMaxPrice());
+        }
+        //库存区间
+        if (productQueryParam.getMinStock() != null) {
+            criteria.andStockGreaterThanOrEqualTo(productQueryParam.getMinStock());
+        }
+        if (productQueryParam.getMaxStock() != null) {
+            criteria.andStockLessThanOrEqualTo(productQueryParam.getMaxStock());
+        }
+        //创建时间范围
+        if (productQueryParam.getCreateTimeStart() != null) {
+            criteria.andCreateTimeGreaterThanOrEqualTo(productQueryParam.getCreateTimeStart());
+        }
+        if (productQueryParam.getCreateTimeEnd() != null) {
+            criteria.andCreateTimeLessThanOrEqualTo(productQueryParam.getCreateTimeEnd());
+        }
+        //排序（仅允许白名单字段与方向，避免 SQL 注入）
+        String orderByClause = buildOrderByClause(productQueryParam.getSortField(), productQueryParam.getSortOrder());
+        if (orderByClause != null) {
+            productExample.setOrderByClause(orderByClause);
+        }
         return productMapper.selectByExample(productExample);
+    }
+
+    /**
+     * 构建安全的排序子句。
+     * sortField 必须命中白名单（price/sale/stock/newStatus），sortOrder 仅允许 asc/desc（缺省 asc）。
+     * 非法字段或方向通过 Asserts.fail 抛出 ApiException，最终返回清晰的 CommonResult 错误。
+     * 追加 id asc 作为二级排序键，保证等值数据在分页中的顺序稳定。
+     *
+     * @return 形如 "price desc, id asc" 的子句；sortField 为空时返回 null（不排序，保持原有行为）
+     */
+    private String buildOrderByClause(String sortField, String sortOrder) {
+        if (StrUtil.isBlank(sortField)) {
+            return null;
+        }
+        String column = SORT_FIELD_WHITELIST.get(sortField.trim());
+        if (column == null) {
+            Asserts.fail("不支持的排序字段: " + sortField);
+        }
+        String direction = "asc";
+        if (StrUtil.isNotBlank(sortOrder)) {
+            String normalized = sortOrder.trim().toLowerCase();
+            if (!"asc".equals(normalized) && !"desc".equals(normalized)) {
+                Asserts.fail("不支持的排序方向: " + sortOrder);
+            }
+            direction = normalized;
+        }
+        return column + " " + direction + ", id asc";
     }
 
     @Override

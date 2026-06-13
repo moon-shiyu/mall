@@ -120,6 +120,9 @@ public class PmsProduct implements Serializable {
     @Schema(title = "移动端网页详情")
     private String detailMobileHtml;
 
+    @Schema(title = "创建时间")
+    private Date createTime;
+
     private static final long serialVersionUID = 1L;
 
     public Long getId() {
@@ -458,6 +461,14 @@ public class PmsProduct implements Serializable {
         this.detailMobileHtml = detailMobileHtml;
     }
 
+    public Date getCreateTime() {
+        return createTime;
+    }
+
+    public void setCreateTime(Date createTime) {
+        this.createTime = createTime;
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -506,6 +517,7 @@ public class PmsProduct implements Serializable {
         sb.append(", detailDesc=").append(detailDesc);
         sb.append(", detailHtml=").append(detailHtml);
         sb.append(", detailMobileHtml=").append(detailMobileHtml);
+        sb.append(", createTime=").append(createTime);
         sb.append(", serialVersionUID=").append(serialVersionUID);
         sb.append("]");
         return sb.toString();
